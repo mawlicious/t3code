@@ -674,8 +674,7 @@ export default function ChatView({ threadId }: ChatViewProps) {
   const [optimisticPhase, setOptimisticPhase] = useOptimistic(phase);
   const isSendBusy = isSendPending;
   const isPreparingWorktree = createWorktreeMutation.isPending;
-  const isWorking =
-    optimisticPhase === "running" || optimisticPhase === "connecting" || isRevertingCheckpoint;
+  const isWorking = optimisticPhase === "running" || isSendBusy || isRevertingCheckpoint;
   const nowIso = new Date(nowTick).toISOString();
   const activeWorkStartedAt = deriveActiveWorkStartedAt(
     activeLatestTurn,
