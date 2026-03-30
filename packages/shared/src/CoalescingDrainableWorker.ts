@@ -13,7 +13,6 @@ import { Effect, TxQueue, TxRef } from "effect";
 export interface CoalescingDrainableWorker<K, V> {
   readonly enqueue: (key: K, value: V) => Effect.Effect<void>;
   readonly drainKey: (key: K) => Effect.Effect<void>;
-  readonly drain: Effect.Effect<void>;
 }
 
 interface CoalescingWorkerState<K, V> {
@@ -126,16 +125,6 @@ export const makeCoalescingDrainableWorker = <K, V, E, R>(options: {
         Effect.asVoid,
       );
 
-    const drain: CoalescingDrainableWorker<K, V>["drain"] = TxRef.get(stateRef).pipe(
-      Effect.tap((state) =>
-        state.latestByKey.size > 0 || state.queuedKeys.size > 0 || state.activeKeys.size > 0
-          ? Effect.txRetry
-          : Effect.void,
-      ),
-      Effect.asVoid,
-      Effect.tx,
-    );
-
     const drainKey: CoalescingDrainableWorker<K, V>["drainKey"] = (key) =>
       TxRef.get(stateRef).pipe(
         Effect.tap((state) =>
@@ -147,5 +136,5 @@ export const makeCoalescingDrainableWorker = <K, V, E, R>(options: {
         Effect.tx,
       );
 
-    return { enqueue, drainKey, drain } satisfies CoalescingDrainableWorker<K, V>;
+    return { enqueue, drainKey } satisfies CoalescingDrainableWorker<K, V>;
   });

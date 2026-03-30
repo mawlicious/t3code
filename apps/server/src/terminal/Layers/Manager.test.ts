@@ -211,6 +211,7 @@ async function makeManager(
     ).pipe(Effect.forkIn(eventScope)),
   );
 
+  let disposed = false;
   return {
     baseDir,
     logsDir,
@@ -221,6 +222,8 @@ async function makeManager(
     run: <A, E>(effect: Effect.Effect<A, E>) => runtime.runPromise(effect),
     getEvents: () => Effect.runPromise(Ref.get(eventsRef)),
     dispose: async () => {
+      if (disposed) return;
+      disposed = true;
       await Effect.runPromise(Scope.close(eventScope, Exit.void));
       await runtime.dispose();
     },
