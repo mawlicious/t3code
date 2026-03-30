@@ -340,6 +340,7 @@ export default function ChatView({ threadId }: ChatViewProps) {
   >({});
   const [isSendPending, startSendTransition] = useTransition();
   const sendStartedAtRef = useRef<string | null>(null);
+  const sendThreadIdRef = useRef<ThreadId | null>(null);
   const [isRevertingCheckpoint, setIsRevertingCheckpoint] = useState(false);
   const [respondingRequestIds, setRespondingRequestIds] = useState<ApprovalRequestId[]>([]);
   const [respondingUserInputRequestIds, setRespondingUserInputRequestIds] = useState<
@@ -672,10 +673,12 @@ export default function ChatView({ threadId }: ChatViewProps) {
   const selectedModelForPicker = selectedModel;
   const phase = derivePhase(activeThread?.session ?? null);
   const [optimisticPhase, setOptimisticPhase] = useOptimistic(phase);
-  const isSendBusy = isSendPending;
+  const isSendForCurrentThread = sendThreadIdRef.current === threadId;
+  const isSendBusy = isSendPending && isSendForCurrentThread;
   const isPreparingWorktree = createWorktreeMutation.isPending;
+  const effectivePhase = isSendForCurrentThread ? optimisticPhase : phase;
   const isWorking =
-    optimisticPhase === "running" || optimisticPhase === "connecting" || isRevertingCheckpoint;
+    effectivePhase === "running" || effectivePhase === "connecting" || isRevertingCheckpoint;
   const nowIso = new Date(nowTick).toISOString();
   const activeWorkStartedAt = deriveActiveWorkStartedAt(
     activeLatestTurn,
@@ -2030,6 +2033,7 @@ export default function ChatView({ threadId }: ChatViewProps) {
       return [];
     });
     sendStartedAtRef.current = null;
+    sendInFlightRef.current = false;
     setComposerHighlightedItemId(null);
     setComposerCursor(collapseExpandedComposerCursor(promptRef.current, promptRef.current.length));
     setComposerTrigger(detectComposerTrigger(promptRef.current, promptRef.current.length));
@@ -2160,14 +2164,14 @@ export default function ChatView({ threadId }: ChatViewProps) {
       : "local";
 
   useEffect(() => {
-    if (optimisticPhase !== "running" && optimisticPhase !== "connecting") return;
+    if (effectivePhase !== "running" && effectivePhase !== "connecting") return;
     const timer = window.setInterval(() => {
       setNowTick(Date.now());
     }, 1000);
     return () => {
       window.clearInterval(timer);
     };
-  }, [optimisticPhase]);
+  }, [effectivePhase]);
 
   useEffect(() => {
     if (!activeThreadId) return;
@@ -2387,7 +2391,7 @@ export default function ChatView({ threadId }: ChatViewProps) {
       const api = readNativeApi();
       if (!api || !activeThread || isRevertingCheckpoint) return;
 
-      if (optimisticPhase === "running" || isSendBusy) {
+      if (effectivePhase === "running" || isSendBusy) {
         setThreadError(activeThread.id, "Interrupt the current turn before reverting checkpoints.");
         return;
       }
@@ -2420,7 +2424,7 @@ export default function ChatView({ threadId }: ChatViewProps) {
       }
       setIsRevertingCheckpoint(false);
     },
-    [activeThread, isRevertingCheckpoint, isSendBusy, optimisticPhase, setThreadError],
+    [activeThread, effectivePhase, isRevertingCheckpoint, isSendBusy, setThreadError],
   );
 
   const onSend = async (e?: { preventDefault: () => void }) => {
@@ -2507,6 +2511,7 @@ export default function ChatView({ threadId }: ChatViewProps) {
 
     sendInFlightRef.current = true;
     sendStartedAtRef.current ??= new Date().toISOString();
+    sendThreadIdRef.current = threadIdForSend;
 
     const composerImagesSnapshot = [...composerImages];
     const composerTerminalContextsSnapshot = [...sendableComposerTerminalContexts];
@@ -2758,6 +2763,7 @@ export default function ChatView({ threadId }: ChatViewProps) {
       }
       sendInFlightRef.current = false;
       sendStartedAtRef.current = null;
+      sendThreadIdRef.current = null;
     });
   };
 
@@ -2950,6 +2956,7 @@ export default function ChatView({ threadId }: ChatViewProps) {
 
       sendInFlightRef.current = true;
       sendStartedAtRef.current ??= new Date().toISOString();
+      sendThreadIdRef.current = threadIdForSend;
       setThreadError(threadIdForSend, null);
       setOptimisticUserMessages((existing) => [
         ...existing,
@@ -3028,6 +3035,7 @@ export default function ChatView({ threadId }: ChatViewProps) {
         }
         sendInFlightRef.current = false;
         sendStartedAtRef.current = null;
+        sendThreadIdRef.current = null;
       });
     },
     [
@@ -3081,6 +3089,7 @@ export default function ChatView({ threadId }: ChatViewProps) {
 
     sendInFlightRef.current = true;
     sendStartedAtRef.current ??= new Date().toISOString();
+    sendThreadIdRef.current = nextThreadId;
 
     startSendTransition(async () => {
       setOptimisticPhase("running");
@@ -3147,6 +3156,7 @@ export default function ChatView({ threadId }: ChatViewProps) {
       }
       sendInFlightRef.current = false;
       sendStartedAtRef.current = null;
+      sendThreadIdRef.current = null;
     });
   }, [
     activeProject,
