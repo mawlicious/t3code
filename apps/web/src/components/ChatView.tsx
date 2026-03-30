@@ -280,6 +280,7 @@ function useOptimisticSendPhase(input: {
   activeThreadId: ThreadId | null;
   phase: SessionPhase;
   latestTurnRequestedAt: string | null;
+  threadError: string | null;
 }): {
   activeSendStartedAt: string | null;
   clearOptimisticSendPhase: (threadId?: ThreadId | null) => void;
@@ -303,16 +304,24 @@ function useOptimisticSendPhase(input: {
     if (!sendPhaseBridge || !isSendForActiveThread || !sendPhaseBridge.requestSettled) {
       return;
     }
-    // Keep the optimistic phase visible until the async send has settled and
-    // the authoritative thread state has caught up to that send.
     if (
       input.phase === "connecting" ||
       input.phase === "running" ||
-      hasLatestTurnCaughtUpToOptimisticSend(input.latestTurnRequestedAt, sendPhaseBridge.startedAt)
+      hasLatestTurnCaughtUpToOptimisticSend(
+        input.latestTurnRequestedAt,
+        sendPhaseBridge.startedAt,
+      ) ||
+      input.threadError !== null
     ) {
       setSendPhaseBridge(null);
     }
-  }, [input.latestTurnRequestedAt, input.phase, isSendForActiveThread, sendPhaseBridge]);
+  }, [
+    input.latestTurnRequestedAt,
+    input.phase,
+    input.threadError,
+    isSendForActiveThread,
+    sendPhaseBridge,
+  ]);
 
   const startOptimisticSendPhase = useCallback(
     (threadId: ThreadId, startedAt: string, phase: SessionPhase) => {
@@ -792,6 +801,7 @@ export default function ChatView({ threadId }: ChatViewProps) {
     activeThreadId,
     phase,
     latestTurnRequestedAt: activeLatestTurn?.requestedAt ?? null,
+    threadError: activeThread?.error ?? null,
   });
   const isSendForActiveThread = isSendBusy;
   const isPreparingWorktree = createWorktreeMutation.isPending && isSendForActiveThread;
