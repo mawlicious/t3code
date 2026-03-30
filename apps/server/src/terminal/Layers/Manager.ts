@@ -977,13 +977,16 @@ export const makeTerminalManagerWithOptions = Effect.fn("makeTerminalManagerWith
 
     const assertValidCwd = Effect.fn("terminal.assertValidCwd")(function* (cwd: string) {
       const stats = yield* fileSystem.stat(cwd).pipe(
-        Effect.mapError(
-          (cause) =>
-            new TerminalCwdError({
-              cwd,
-              reason: "notFound",
-              cause,
-            }),
+        Effect.catch((error) =>
+          error.reason._tag === "NotFound"
+            ? Effect.fail(
+                new TerminalCwdError({
+                  cwd,
+                  reason: "notFound",
+                  cause: error,
+                }),
+              )
+            : Effect.die(error),
         ),
       );
       if (stats.type !== "Directory") {
